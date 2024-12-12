@@ -1,116 +1,215 @@
-import React, { useState, useEffect } from 'react';
-import { Card } from "@/components/ui/card";
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>设备追踪记录</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-const STORAGE_KEY = 'device-tracker-records';
-const HOURS_24 = 24 * 60 * 60 * 1000; // 24小时的毫秒数
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
 
-const DeviceTracker = () => {
-  // 过滤并只保留24小时内的记录
-  const filterRecent = (records) => {
-    const now = new Date().getTime();
-    return records.filter(record => {
-      const recordTime = new Date(record.timestamp).getTime();
-      return (now - recordTime) < HOURS_24;
-    });
-  };
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            gap: 20px;
+            padding: 20px;
+        }
 
-  // 初始化时从 localStorage 读取数据，并过滤掉超过24小时的记录
-  const [records, setRecords] = useState(() => {
-    const savedRecords = localStorage.getItem(STORAGE_KEY);
-    if (!savedRecords) return [];
-    const parsedRecords = JSON.parse(savedRecords);
-    return filterRecent(parsedRecords);
-  });
+        .button-section {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
 
-  // 每当记录更新或每分钟自动检查一次，清理过期记录
-  useEffect(() => {
-    // 保存当前记录到 localStorage
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+        .jump-button {
+            padding: 12px 24px;
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
 
-    // 设置定时器，每分钟检查一次过期记录
-    const timer = setInterval(() => {
-      setRecords(prev => filterRecent(prev));
-    }, 60000); // 每分钟检查一次
+        .jump-button:hover {
+            background-color: #2563eb;
+        }
 
-    return () => clearInterval(timer); // 清理定时器
-  }, [records]);
+        .records-card {
+            flex: 1;
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
 
-  const handleClick = () => {
-    // 获取设备信息
-    const userAgent = navigator.userAgent;
-    const now = new Date();
-    
-    // 创建新记录
-    const newRecord = {
-      device: userAgent,
-      timestamp: now.toISOString(), // 使用ISO格式存储时间以便后续处理
-      displayTime: now.toLocaleString('zh-CN') // 用于显示的格式化时间
-    };
-    
-    // 更新记录列表，同时过滤掉超过24小时的记录
-    setRecords(prev => {
-      const updatedRecords = [...prev, newRecord];
-      return filterRecent(updatedRecords);
-    });
-    
-    // 延迟跳转，让用户能看到记录更新
-    setTimeout(() => {
-      window.location.href = 'https://cc.yrai.cc';
-    }, 500);
-  };
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
 
-  // 计算距离现在的时间
-  const getTimeAgo = (timestamp) => {
-    const now = new Date().getTime();
-    const recordTime = new Date(timestamp).getTime();
-    const diffMinutes = Math.floor((now - recordTime) / (60 * 1000));
-    
-    if (diffMinutes < 1) return '刚刚';
-    if (diffMinutes < 60) return `${diffMinutes}分钟前`;
-    const diffHours = Math.floor(diffMinutes / 60);
-    if (diffHours < 24) return `${diffHours}小时前`;
-    return '24小时前';
-  };
+        .card-title {
+            font-size: 20px;
+            font-weight: bold;
+        }
 
-  return (
-    <div className="flex flex-col md:flex-row gap-8 p-8 w-full max-w-6xl mx-auto">
-      <div className="flex-1 flex items-center justify-center">
-        <button
-          onClick={handleClick}
-          className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-        >
-          点击跳转
-        </button>
-      </div>
-      
-      <Card className="flex-1 p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold">最近24小时访问记录</h2>
-          <div className="text-sm text-gray-500">
-            共 {records.length} 条记录
-          </div>
+        .record-count {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .record-item {
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
+            margin-bottom: 8px;
+        }
+
+        .record-label {
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .record-value {
+            font-size: 14px;
+            color: #666;
+            word-break: break-all;
+        }
+
+        .time-ago {
+            color: #999;
+            margin-left: 8px;
+        }
+
+        .empty-message {
+            text-align: center;
+            color: #666;
+            padding: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="button-section">
+            <button class="jump-button" onclick="handleClick()">点击跳转</button>
         </div>
-        <div className="space-y-4">
-          {records.map((record, index) => (
-            <div key={index} className="border-b pb-2">
-              <div className="font-medium">设备信息：</div>
-              <div className="text-sm text-gray-600 break-all">{record.device}</div>
-              <div className="font-medium mt-2">访问时间：</div>
-              <div className="text-sm text-gray-600">
-                {record.displayTime}
-                <span className="ml-2 text-gray-400">
-                  ({getTimeAgo(record.timestamp)})
-                </span>
-              </div>
+        <div class="records-card">
+            <div class="card-header">
+                <h2 class="card-title">最近24小时访问记录</h2>
+                <div class="record-count" id="recordCount">共 0 条记录</div>
             </div>
-          ))}
-          {records.length === 0 && (
-            <div className="text-gray-500 text-center">暂无记录</div>
-          )}
+            <div id="recordsList"></div>
         </div>
-      </Card>
     </div>
-  );
-};
 
-export default DeviceTracker;
+    <script>
+        const STORAGE_KEY = 'device-tracker-records';
+        const HOURS_24 = 24 * 60 * 60 * 1000;
+
+        // 过滤并只保留24小时内的记录
+        function filterRecent(records) {
+            const now = new Date().getTime();
+            return records.filter(record => {
+                const recordTime = new Date(record.timestamp).getTime();
+                return (now - recordTime) < HOURS_24;
+            });
+        }
+
+        // 计算距离现在的时间
+        function getTimeAgo(timestamp) {
+            const now = new Date().getTime();
+            const recordTime = new Date(timestamp).getTime();
+            const diffMinutes = Math.floor((now - recordTime) / (60 * 1000));
+            
+            if (diffMinutes < 1) return '刚刚';
+            if (diffMinutes < 60) return `${diffMinutes}分钟前`;
+            const diffHours = Math.floor(diffMinutes / 60);
+            if (diffHours < 24) return `${diffHours}小时前`;
+            return '24小时前';
+        }
+
+        // 更新记录显示
+        function updateRecordsList(records) {
+            const recordsList = document.getElementById('recordsList');
+            const recordCount = document.getElementById('recordCount');
+            
+            recordCount.textContent = `共 ${records.length} 条记录`;
+            
+            if (records.length === 0) {
+                recordsList.innerHTML = '<div class="empty-message">暂无记录</div>';
+                return;
+            }
+
+            recordsList.innerHTML = records.map(record => `
+                <div class="record-item">
+                    <div class="record-label">设备信息：</div>
+                    <div class="record-value">${record.device}</div>
+                    <div class="record-label">访问时间：</div>
+                    <div class="record-value">
+                        ${record.displayTime}
+                        <span class="time-ago">(${getTimeAgo(record.timestamp)})</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 加载并显示记录
+        function loadRecords() {
+            const savedRecords = localStorage.getItem(STORAGE_KEY);
+            const records = savedRecords ? filterRecent(JSON.parse(savedRecords)) : [];
+            updateRecordsList(records);
+            return records;
+        }
+
+        // 点击按钮处理函数
+        function handleClick() {
+            const userAgent = navigator.userAgent;
+            const now = new Date();
+            
+            const newRecord = {
+                device: userAgent,
+                timestamp: now.toISOString(),
+                displayTime: now.toLocaleString('zh-CN')
+            };
+            
+            const currentRecords = loadRecords();
+            const updatedRecords = filterRecent([...currentRecords, newRecord]);
+            
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedRecords));
+            updateRecordsList(updatedRecords);
+            
+            setTimeout(() => {
+                window.location.href = 'https://cc.yrai.cc';
+            }, 500);
+        }
+
+        // 初始加载记录
+        loadRecords();
+
+        // 设置定时器，每分钟更新一次记录
+        setInterval(() => {
+            const records = loadRecords();
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+        }, 60000);
+    </script>
+</body>
+</html>
