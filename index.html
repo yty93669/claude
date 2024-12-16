@@ -7,7 +7,96 @@
     <!-- 引入阿里云 OSS SDK -->
     <script src="https://gosspublic.alicdn.com/aliyun-oss-sdk-6.17.1.min.js"></script>
     <style>
-        /* 之前的样式保持不变 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: #1890ff;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .btn-container {
+            padding: 20px;
+            text-align: center;
+            background: #f8f9fa;
+            border-bottom: 1px solid #eee;
+        }
+
+        .btn {
+            background: #1890ff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s;
+        }
+
+        .btn:hover {
+            background: #40a9ff;
+        }
+
+        .records {
+            padding: 20px;
+        }
+
+        .record-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .record-item {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .record-device {
+            font-size: 16px;
+            color: #333;
+        }
+
+        .record-time {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .error-message {
+            background: #fff2f0;
+            border: 1px solid #ffccc7;
+            color: #ff4d4f;
+            padding: 10px;
+            margin: 10px 20px;
+            border-radius: 4px;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -29,16 +118,64 @@
     </div>
 
     <script>
-        // OSS 客户端配置
+        // OSS 客户端配置（建议更换为新的安全凭证）
         const client = new OSS({
-            accessKeyId: 'LTAI5t7WWPY6JYdHmZaneVF7',
-            accessKeySecret: '6VNWTKmlhU6jA6XwgusNcfSHkqtqH1',
+            accessKeyId: 'YOUR_NEW_ACCESS_KEY_ID',
+            accessKeySecret: 'YOUR_NEW_ACCESS_KEY_SECRET',
             bucket: 'yty93669',
             endpoint: 'oss-cn-beijing.aliyuncs.com',
             secure: true
         });
 
         const RECORDS_FILE = 'records.json';
+
+        // 解析设备信息
+        function parseDeviceInfo(userAgent) {
+            let deviceInfo = {
+                brand: '未知设备',
+                type: '未知类型'
+            };
+
+            const ua = userAgent.toLowerCase();
+            
+            // 检测设备类型
+            if (ua.includes('mobile')) {
+                deviceInfo.type = '手机';
+            } else if (ua.includes('ipad') || ua.includes('tablet')) {
+                deviceInfo.type = '平板';
+            } else {
+                deviceInfo.type = '电脑';
+            }
+
+            // 检测品牌
+            if (ua.includes('huawei')) {
+                deviceInfo.brand = '华为';
+            } else if (ua.includes('honor')) {
+                deviceInfo.brand = '荣耀';
+            } else if (ua.includes('oppo')) {
+                deviceInfo.brand = 'OPPO';
+            } else if (ua.includes('vivo')) {
+                deviceInfo.brand = 'vivo';
+            } else if (ua.includes('mi') || ua.includes('redmi')) {
+                deviceInfo.brand = '小米';
+            } else if (ua.includes('samsung')) {
+                deviceInfo.brand = '三星';
+            } else if (ua.includes('iphone')) {
+                deviceInfo.brand = '苹果';
+            } else if (ua.includes('lenovo')) {
+                deviceInfo.brand = '联想';
+            } else if (ua.includes('legion')) {
+                deviceInfo.brand = '拯救者';
+            } else if (ua.includes('rog')) {
+                deviceInfo.brand = 'ROG';
+            } else if (ua.includes('mac')) {
+                deviceInfo.brand = 'Mac';
+            } else if (ua.includes('windows')) {
+                deviceInfo.brand = 'Windows';
+            }
+
+            return `${deviceInfo.brand}${deviceInfo.type}`;
+        }
 
         // 获取记录
         async function getRecords() {
@@ -75,31 +212,22 @@
         // 处理访问点击
         async function handleClick() {
             try {
-                // 获取现有记录
                 let records = await getRecords();
                 
-                // 添加新记录
                 const newRecord = {
-                    device: navigator.userAgent,
+                    deviceInfo: parseDeviceInfo(navigator.userAgent),
                     timestamp: new Date().toISOString()
                 };
 
-                // 保留24小时内的记录
                 const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
                 records = records.filter(record => 
                     new Date(record.timestamp).getTime() > dayAgo
                 );
 
-                // 添加新记录
                 records.push(newRecord);
-
-                // 保存更新后的记录
                 await saveRecords(records);
-
-                // 更新显示
                 updateDisplay(records);
 
-                // 延迟跳转
                 setTimeout(() => {
                     window.location.href = 'https://cc.yrai.cc';
                 }, 500);
@@ -108,6 +236,24 @@
                 showError('操作失败：' + error.message);
                 console.error('错误:', error);
             }
+        }
+
+        // 格式化时间
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diff = Math.floor((now - date) / 1000);
+
+            if (diff < 60) return '刚刚';
+            if (diff < 3600) return `${Math.floor(diff / 60)}分钟前`;
+            if (diff < 86400) return `${Math.floor(diff / 3600)}小时前`;
+
+            return date.toLocaleString('zh-CN', {
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
         }
 
         // 更新显示
@@ -122,17 +268,12 @@
                 return;
             }
 
-            // 按时间排序，最新的在前面
-            records.sort((a, b) => 
-                new Date(b.timestamp) - new Date(a.timestamp)
-            );
+            records.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
             recordList.innerHTML = records.map(record => `
                 <div class="record-item">
-                    <div class="device-info">${record.device}</div>
-                    <div class="record-meta">
-                        ${new Date(record.timestamp).toLocaleString('zh-CN')}
-                    </div>
+                    <div class="record-device">${record.deviceInfo}</div>
+                    <div class="record-time">${formatTime(record.timestamp)}</div>
                 </div>
             `).join('');
         }
@@ -156,10 +297,7 @@
             }
         }
 
-        // 页面加载时初始化
         init();
-
-        // 定期刷新
         setInterval(init, 30000);
     </script>
 </body>
