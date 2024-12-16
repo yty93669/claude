@@ -3,9 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>访问记录</title>
-    <!-- 引入阿里云 OSS SDK -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/aliyun-oss-sdk/6.17.1/aliyun-oss-sdk.min.js"></script>
     <title>访问记录跟踪器</title>
     <style>
         * {
@@ -74,14 +71,6 @@
         .record-item {
             padding: 10px;
             border-bottom: 1px solid #eee;
-            transition: background 0.3s;
-        }
-        .record-item:hover {
-            background: #f9f9f9;
-        }
-        .record-device {
-            margin-bottom: 5px;
-            word-break: break-all;
         }
 
         .record-meta {
@@ -90,7 +79,6 @@
             margin-top: 5px;
         }
 
-        .error {
         .error-message {
             background: #fff2f0;
             border: 1px solid #ffccc7;
@@ -100,17 +88,6 @@
             border-radius: 4px;
             display: none;
         }
-        .loading {
-            text-align: center;
-            padding: 20px;
-            color: #666;
-            display: none;
-        }
-        @media (max-width: 600px) {
-            body {
-                padding: 10px;
-            }
-        }
     </style>
 </head>
 <body>
@@ -119,11 +96,8 @@
             <h1>访问记录跟踪器</h1>
         </div>
         <div class="btn-container">
-            <button class="btn" onclick="handleVisit()">访问网站</button>
             <button class="btn" onclick="handleClick()">访问网站</button>
         </div>
-        <div id="error" class="error"></div>
-        <div id="loading" class="loading">加载中...</div>
         <div id="error" class="error-message"></div>
         <div class="records">
             <div class="record-header">
@@ -135,20 +109,12 @@
     </div>
 
     <script>
-        // OSS 配置
-        const ossConfig = {
-            accessKeyId: 'LTAI5t7WWPY6JYdHmZaneVF7',
-            accessKeySecret: '6VNWTKmlhU6jA6XwgusNcfSHkqtqH1',
         const config = {
             bucket: 'yty93669',
-            endpoint: 'oss-cn-beijing.aliyuncs.com',
-            secure: true
             region: 'oss-cn-beijing',
             recordsFile: 'records.json'
         };
 
-        const client = new OSS(ossConfig);
-        const RECORDS_FILE = 'visit-records.json';
         // 显示错误信息
         function showError(message) {
             const error = document.getElementById('error');
@@ -157,18 +123,9 @@
             setTimeout(() => error.style.display = 'none', 3000);
         }
 
-        // 显示/隐藏加载状态
-        function setLoading(isLoading) {
-            document.getElementById('loading').style.display = isLoading ? 'block' : 'none';
-        }
         // 获取记录
         async function getRecords() {
             try {
-                const result = await client.get(RECORDS_FILE);
-                return JSON.parse(result.content);
-            } catch (error) {
-                if (error.code === 'NoSuchKey') {
-                    return [];
                 const response = await fetch(`https://${config.bucket}.${config.region}.aliyuncs.com/${config.recordsFile}`);
                 if (!response.ok) {
                     if (response.status === 404) {
@@ -176,7 +133,6 @@
                     }
                     throw new Error('获取记录失败');
                 }
-                throw error;
                 const data = await response.json();
                 return Array.isArray(data) ? data : [];
             } catch (error) {
@@ -185,13 +141,6 @@
             }
         }
 
-        // 保存记录
-        async function saveRecords(records) {
-            await client.put(
-                RECORDS_FILE,
-                new Blob([JSON.stringify(records)], { type: 'application/json' })
-            );
-        }
         // 更新记录
         async function updateRecords(records) {
             try {
@@ -202,15 +151,12 @@
                     id: now.toString()
                 };
 
-        // 过滤24小时内的记录
-        function filterRecent(records) {
-            const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
-            return records.filter(record => new Date(record.timestamp) > dayAgo);
                 // 只保留24小时内的记录
                 const recentRecords = records.filter(record => {
                     const recordTime = new Date(record.timestamp).getTime();
                     return (now - recordTime) < 24 * 60 * 60 * 1000;
                 });
+
                 return [...recentRecords, newRecord];
             } catch (error) {
                 console.error('更新记录错误:', error);
@@ -227,7 +173,7 @@
             if (diff < 60) return '刚刚';
             if (diff < 3600) return `${Math.floor(diff / 60)}分钟前`;
             if (diff < 86400) return `${Math.floor(diff / 3600)}小时前`;
-
+            
             return date.toLocaleString('zh-CN', {
                 month: 'numeric',
                 day: 'numeric',
@@ -236,13 +182,11 @@
             });
         }
 
-        // 更新记录显示
-        function updateRecordList(records) {
         // 更新显示
         function updateDisplay(records) {
             const recordList = document.getElementById('recordList');
             const recordCount = document.getElementById('recordCount');
-
+            
             recordCount.textContent = `共 ${records.length} 条记录`;
 
             if (records.length === 0) {
@@ -252,79 +196,47 @@
 
             recordList.innerHTML = records.map(record => `
                 <div class="record-item">
-                    <div class="record-device">${record.device}</div>
-                    <div class="record-meta">
-                        <span>${formatTime(record.timestamp)}</span>
-                    </div>
                     <div>${record.device}</div>
                     <div class="record-meta">${formatTime(record.timestamp)}</div>
                 </div>
             `).join('');
         }
 
-        // 处理访问点击
-        async function handleVisit() {
         // 处理点击事件
         async function handleClick() {
             try {
-                setLoading(true);
-                // 获取当前记录
-                let records = await getRecords();
-                
-                // 添加新记录
-                const newRecord = {
-                    device: navigator.userAgent,
-                    timestamp: new Date().toISOString()
-                };
                 const records = await getRecords();
                 const updatedRecords = await updateRecords(records);
-
-                // 更新记录
-                records = filterRecent([...records, newRecord]);
-                await saveRecords(records);
-                updateRecordList(records);
+                
                 // 显示新记录
                 updateDisplay(updatedRecords);
 
-                // 成功后延迟跳转
                 // 跳转
                 setTimeout(() => {
                     window.location.href = 'https://cc.yrai.cc';
                 }, 500);
+
             } catch (error) {
-                console.error('Error:', error);
                 showError('操作失败，请稍后重试');
-            } finally {
-                setLoading(false);
                 console.error('Error:', error);
             }
         }
 
-        // 加载记录
-        async function loadRecords() {
         // 页面加载时获取记录
         async function init() {
             try {
-                setLoading(true);
                 const records = await getRecords();
-                updateRecordList(filterRecent(records));
                 updateDisplay(records);
             } catch (error) {
-                console.error('Error:', error);
                 showError('加载记录失败');
-            } finally {
-                setLoading(false);
                 console.error('Error:', error);
             }
         }
 
-        // 初始加载
-        loadRecords();
         // 初始化
         init();
 
         // 定期刷新
-        setInterval(loadRecords, 30000);  // 每30秒刷新一次
         setInterval(init, 30000);
     </script>
 </body>
